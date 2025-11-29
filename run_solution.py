@@ -14,11 +14,22 @@ import argparse
 import asyncio
 import json
 import os
+import re
 from typing import Any
 
 from langchain_core.messages import HumanMessage
 from langchain_openai import ChatOpenAI
 from langgraph.prebuilt import create_react_agent
+
+
+def normalize_sql(sql: str) -> str:
+    """
+    Нормализует SQL запрос: заменяет множественные пробелы и переносы на одиночные пробелы.
+    Сохраняет структуру запроса, удаляя лишние пробелы.
+    """
+    # Replace newlines and multiple spaces with single space
+    normalized = re.sub(r'\s+', ' ', sql)
+    return normalized.strip()
 
 
 def query_analize_prompt() -> str:
@@ -105,8 +116,8 @@ def ddl_optim_prompt() -> str:
 - Свойства: только допустимые Trino/Iceberg ключи в WITH (...). Не использовать 'write.target-file-size-bytes'. Без висячих запятых.
 
 РАЗРЕШЕНО:
-- PARTITIONING (через WITH) с допустимыми функциями
-- - CREATE TABLE AS SELECT WITH (format = 'PARQUET')
+- PARTITIONING через WITH с допустимыми функциями
+- CREATE TABLE AS SELECT WITH (format = 'PARQUET')
 - Создание оптимизированных копий
 
 ЗАПРЕЩЕНО:
@@ -115,9 +126,8 @@ def ddl_optim_prompt() -> str:
 - Несовместимый синтаксис
 
 ПРИМЕРЫ:
-ALTER TABLE analytics.sales.orders PARTITIONING (через WITH) year(order_date);
+CREATE TABLE catalog.schema.table_new WITH (partitioning = ARRAY['year(order_date)']) AS SELECT * FROM catalog.schema.table_old;
 CREATE TABLE analytics.sales.orders_new AS SELECT * FROM orders WITH (format = 'PARQUET');
-ALTER TABLE analytics.sales.orders -- removed unsafe SET PROPERTIES example
 
 ПРАВИЛА ВЫВОДА:
 - Каждый оператор — отдельной строкой; не объединяй множество операторов в одну строку.
@@ -378,8 +388,8 @@ class SQLOptimizationPipeline:
                 print(f"Failed to execute. Error: {e!r}")
                 print("Retrying...")
                 await asyncio.sleep(1)
-        print("OMG_MODEL_CRASHED!!!")
-        return "OMG_MODEL_CRASHED!!!"
+        print("ERROR: Model call failed after all retries")
+        return "ERROR: Model call failed after all retries"
 
     def _get_answer(self, agent: Any, content: str) -> str:
         """Синхронный вызов агента с повторными попытками."""
@@ -390,8 +400,8 @@ class SQLOptimizationPipeline:
             except Exception as e:
                 print(f"Failed to execute. Error: {e!r}")
                 print("Retrying...")
-        print("OMG_MODEL_CRASHED!!!")
-        return "OMG_MODEL_CRASHED!!!"
+        print("ERROR: Model call failed after all retries")
+        return "ERROR: Model call failed after all retries"
 
     async def _bounded_get_answer_async(self, agent: Any, content: str) -> str:
         """Асинхронный вызов с ограничением параллелизма."""
@@ -448,11 +458,11 @@ class SQLOptimizationPipeline:
                     optimized = response["messages"][-1].content
                     return await self._check_query(query, optimized)
                 except Exception as e:
-                    print(f"Failed to optimize query: {query}. Error: {e!r}")
+                    print(f"Failed to optimize query: {query[:50]}... Error: {e!r}")
                     print("Retrying...")
                     await asyncio.sleep(1)
-            print(f"OMG_MODEL_CRASHED!!! for query: {query}")
-            return "OMG_MODEL_CRASHED!!!"
+            print(f"ERROR: Query optimization failed after all retries")
+            return query  # Return original query if optimization fails
 
     async def run(self, input_data: dict[str, Any]) -> dict[str, Any]:
         """
@@ -544,19 +554,19 @@ class SQLOptimizationPipeline:
         result = {
             "ddl": input_data["ddl"]
             + [
-                {"statement": stmt}
-                for stmt in new_ddl.replace("\n", " ").split(";")[:-1]
+                {"statement": normalize_sql(stmt)}
+                for stmt in new_ddl.split(";")
                 if stmt.strip()
             ],
             "migrations": [
-                {"statement": stmt}
-                for stmt in migrations.replace("\n", " ").split(";")[:-1]
+                {"statement": normalize_sql(stmt)}
+                for stmt in migrations.split(";")
                 if stmt.strip()
             ],
             "queries": [
                 {
                     "queryid": item["queryid"],
-                    "query": optimized_queries[item["queryid"]].replace("\n", " "),
+                    "query": normalize_sql(optimized_queries[item["queryid"]]),
                 }
                 for item in input_data["queries"]
             ],

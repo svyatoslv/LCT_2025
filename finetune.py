@@ -87,10 +87,11 @@ def generate_training_data(input_path: str, output_path: str) -> None:
                 },
                 {
                     "role": "assistant",
-                    "content": f"[PLACEHOLDER: Анализ запроса с указанием таблиц, фильтров, JOIN, операций и рекомендаций по DDL]",
+                    "content": "[REQUIRES_ANNOTATION: Добавьте анализ запроса с указанием таблиц, фильтров, JOIN, операций и рекомендаций по DDL]",
                 },
             ],
             "task_type": "query_analysis",
+            "requires_annotation": True,
         })
 
         # Пример для оптимизатора запросов
@@ -103,13 +104,14 @@ def generate_training_data(input_path: str, output_path: str) -> None:
                 },
                 {
                     "role": "assistant",
-                    "content": f"[PLACEHOLDER: Оптимизированный SQL запрос с использованием партиций и денормализации]",
+                    "content": "[REQUIRES_ANNOTATION: Добавьте оптимизированный SQL запрос с использованием партиций и денормализации]",
                 },
             ],
             "task_type": "query_optimization",
+            "requires_annotation": True,
         })
 
-        # Пример для критика
+        # Пример для критика (готовый к использованию - не требует аннотации)
         training_examples.append({
             "messages": [
                 {"role": "system", "content": SYSTEM_PROMPTS["critic"]},
@@ -122,6 +124,7 @@ def generate_training_data(input_path: str, output_path: str) -> None:
                 {"role": "assistant", "content": "OK"},
             ],
             "task_type": "query_critique",
+            "requires_annotation": False,
         })
 
     # Примеры для DDL оптимизатора
@@ -135,11 +138,16 @@ def generate_training_data(input_path: str, output_path: str) -> None:
             },
             {
                 "role": "assistant",
-                "content": "[PLACEHOLDER: Оптимизированные DDL с партиционированием]",
+                "content": "[REQUIRES_ANNOTATION: Добавьте оптимизированные DDL с партиционированием]",
             },
         ],
         "task_type": "ddl_optimization",
+        "requires_annotation": True,
     })
+
+    # Count examples requiring annotation
+    annotated_count = sum(1 for ex in training_examples if ex.get("requires_annotation", False))
+    ready_count = len(training_examples) - annotated_count
 
     # Сохранение в JSONL формате
     with open(output_path, "w", encoding="utf-8") as f:
@@ -147,8 +155,11 @@ def generate_training_data(input_path: str, output_path: str) -> None:
             f.write(json.dumps(example, ensure_ascii=False) + "\n")
 
     print(f"Сгенерировано {len(training_examples)} примеров для обучения")
+    print(f"  - Готовых к использованию: {ready_count}")
+    print(f"  - Требующих аннотации: {annotated_count}")
     print(f"Данные сохранены в {output_path}")
-    print("\nВАЖНО: Замените [PLACEHOLDER: ...] на реальные примеры!")
+    print("\nВАЖНО: Примеры с [REQUIRES_ANNOTATION:...] требуют ручной аннотации!")
+    print("Используйте команду 'annotate' для создания удобного шаблона аннотации.")
 
 
 def prepare_dataset_for_training(dataset_path: str) -> tuple[list, list]:
