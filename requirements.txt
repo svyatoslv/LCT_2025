@@ -1,0 +1,19 @@
+# Основные зависимости для запуска решения
+litellm>=1.0.0
+langchain>=0.1.0
+langchain-openai>=0.0.2
+langchain-community>=0.0.10
+langchain-anthropic>=0.1.0
+langchain-tavily>=0.1.0
+langchain-experimental>=0.0.40
+langgraph>=0.0.20
+matplotlib>=3.7.0
+
+# Для дообучения модели (опционально)
+# torch>=2.0.0
+# transformers>=4.35.0
+# datasets>=2.15.0
+# peft>=0.7.0
+# trl>=0.7.0
+# bitsandbytes>=0.41.0
+# accelerate>=0.24.0
